@@ -16,12 +16,9 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             set -e
-            # обновить код
             cd /root/app/src || (mkdir -p /root/app && cd /root/app && git clone https://github.com/A2Y7/logsapp.git src && cd src)
             git pull
-            # убедиться, что файл логов есть
             mkdir -p /root/app/src/data
             touch /root/app/src/data/logs.txt
-            # пересобрать и поднять контейнеры
             cd /root/app
             docker compose up -d --build

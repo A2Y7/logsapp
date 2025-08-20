@@ -1,0 +1,52 @@
+# Имя нашего процесса. Будет отображаться на GitHub во вкладке "Actions"
+name: CI - Сборка и публикация Docker-образа
+
+# Триггер: когда запускать этот сценарий.
+# Мы запускаем его при каждом git push в основную ветку "main"
+# Если ваша основная ветка называется "master", замените "main" на "master".
+on:
+  push:
+    branches: [ "main" ]
+
+# "jobs" - это задачи, которые нужно выполнить. У нас пока одна задача.
+jobs:
+  # Название задачи, может быть любым (например, build-and-publish).
+  build-and-push:
+    # На какой операционной системе будет работать наш сценарий.
+    # ubuntu-latest — это стандартный и бесплатный вариант.
+    runs-on: ubuntu-latest
+
+    # GitHub Actions нужно разрешение, чтобы публиковать образ в вашем репозитории.
+    # Это стандартный безопасный способ предоставить права.
+    permissions:
+      contents: read
+      packages: write
+
+    # "steps" - это конкретные шаги, которые будут выполняться по порядку.
+    steps:
+      # Шаг 1: Скачиваем код из нашего репозитория на виртуальную машину GitHub.
+      - name: Скачивание кода
+        uses: actions/checkout@v3
+
+      # Шаг 2: Вход в хранилище Docker-образов GitHub (GitHub Container Registry).
+      # Это нужно, чтобы у нас было право загрузить туда наш образ.
+      - name: Вход в GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          # ${{ github.actor }} — это ваше имя пользователя на GitHub.
+          # ${{ secrets.GITHUB_TOKEN }} — это временный секретный ключ, который GitHub создает автоматически.
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Шаг 3: Сборка и отправка Docker-образа в хранилище.
+      - name: Сборка и публикация образа
+        uses: docker/build-push-action@v4
+        with:
+          # context: .  означает, что Dockerfile находится в корне проекта.
+          context: .
+          # push: true говорит, что после успешной сборки образ нужно отправить в хранилище.
+          push: true
+          # "tags" - это имя нашего образа. Мы используем стандартный формат.
+          # ghcr.io/ВАШ_ЛОГИН/ИМЯ_РЕПОЗИТОРИЯ:latest
+          tags: ghcr.io/${{ github.repository }}:latest

@@ -27,7 +27,8 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ toLowerCase(github.repository) }}:latest
+          # --- УБРАНА ФУНКЦИЯ toLowerCase ---
+          tags: ghcr.io/${{ github.repository }}:latest
 
   deploy:
     needs: build-and-push
@@ -43,11 +44,13 @@ jobs:
           script: |
             echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            docker pull ghcr.io/${{ toLowerCase(github.repository) }}:latest
+            # --- УБРАНА ФУНКЦИЯ toLowerCase ---
+            docker pull ghcr.io/${{ github.repository }}:latest
             
             docker stop logsapp || true
             docker rm logsapp || true
             
-            docker run -d --restart always -p 80:3000 --name logsapp ghcr.io/${{ toLowerCase(github.repository) }}:latest
+            # --- УБРАНА ФУНКЦИЯ toLowerCase ---
+            docker run -d --restart always -p 80:3000 --name logsapp ghcr.io/${{ github.repository }}:latest
             
             docker image prune -af

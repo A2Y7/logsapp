@@ -31,7 +31,7 @@ jobs:
         with:
           context: .
           push: true
-          # --- ИСПРАВЛЕНО ЗДЕСЬ ---
+          # --- ПРАВИЛЬНАЯ ВЕРСИЯ ---
           tags: ghcr.io/${{ toLowerCase(github.repository) }}:latest
 
   # Задача №2: Развертывание на сервере
@@ -49,13 +49,13 @@ jobs:
           script: |
             echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # --- ИСПРАВЛЕНО ЗДЕСЬ ---
+            # --- ПРАВИЛЬНАЯ ВЕРСИЯ ---
             docker pull ghcr.io/${{ toLowerCase(github.repository) }}:latest
             
             docker stop logsapp || true
             docker rm logsapp || true
             
-            # --- И ИСПРАВЛЕНО ЗДЕСЬ ---
+            # --- ПРАВИЛЬНАЯ ВЕРСИЯ ---
             docker run -d --restart always -p 80:3000 --name logsapp ghcr.io/${{ toLowerCase(github.repository) }}:latest
             
             docker image prune -af

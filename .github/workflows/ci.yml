@@ -1,8 +1,9 @@
-name: CI/CD - Сборка, публикация и развертывание
+name: CI/CD - Staging & Production Deployment
 
 on:
   push:
-    branches: [ "main" ]
+    # Запускать при пуше в любую из этих двух веток
+    branches: [ "main", "develop" ]
 
 jobs:
   build-and-push:
@@ -10,10 +11,19 @@ jobs:
     permissions:
       contents: read
       packages: write
-    
+
+    outputs:
+      # Создаем выходную переменную с именем ветки, чтобы передать ее в другие задачи
+      branch_name: ${{ steps.get_branch.outputs.BRANCH }}
+
     steps:
       - name: Скачивание кода
         uses: actions/checkout@v3
+
+      # Этот шаг извлекает имя ветки (например, "main" или "develop")
+      - name: Get branch name
+        id: get_branch
+        run: echo "BRANCH=${GITHUB_REF#refs/heads/}" >> $GITHUB_OUTPUT
 
       - name: Вход в GitHub Container Registry
         uses: docker/login-action@v2
@@ -27,30 +37,61 @@ jobs:
         with:
           context: .
           push: true
-          # --- УБРАНА ФУНКЦИЯ toLowerCase ---
-          tags: ghcr.io/${{ github.repository }}:latest
+          # Тегируем образ именем ветки, например ghcr.io/user/repo:main
+          tags: ghcr.io/${{ github.repository }}:${{ steps.get_branch.outputs.BRANCH }}
 
-  deploy:
+  # --- ЗАДАЧА ДЛЯ РАЗВЕРТЫВАНИЯ НА ТЕСТОВЫЙ СЕРВЕР ---
+  deploy-staging:
     needs: build-and-push
+    # Запускать эту задачу ТОЛЬКО если ветка - develop
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
-    
+
     steps:
-      - name: Развертывание на сервере
+      - name: Развертывание на Staging
         uses: appleboy/ssh-action@master
         with:
+          # Используем секреты для Staging
+          host: ${{ secrets.STAGING_SSH_HOST }}
+          username: ${{ secrets.STAGING_SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            IMAGE_TAG=${{ needs.build-and-push.outputs.branch_name }}
+            IMAGE_NAME=ghcr.io/${{ github.repository }}:$IMAGE_TAG
+            CONTAINER_NAME=logsapp-staging
+
+            echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            docker pull $IMAGE_NAME
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+            docker run -d --restart always -p 8080:3000 --name $CONTAINER_NAME $IMAGE_NAME
+            docker image prune -af
+
+  # --- ЗАДАЧА ДЛЯ РАЗВЕРТЫВАНИЯ НА БОЕВОЙ СЕРВЕР ---
+  deploy-production:
+    needs: build-and-push
+    # Запускать эту задачу ТОЛЬКО если ветка - main
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Развертывание на Production
+        uses: appleboy/ssh-action@master
+        with:
+          # Используем секреты для Production (старые SSH_HOST, SSH_USER)
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            IMAGE_TAG=${{ needs.build-and-push.outputs.branch_name }}
+            IMAGE_NAME=ghcr.io/${{ github.repository }}:$IMAGE_TAG
+            # Дадим другое имя контейнеру, чтобы не было путаницы
+            CONTAINER_NAME=logsapp-production
+
             echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # --- УБРАНА ФУНКЦИЯ toLowerCase ---
-            docker pull ghcr.io/${{ github.repository }}:latest
-            
-            docker stop logsapp || true
-            docker rm logsapp || true
-            
-            # --- УБРАНА ФУНКЦИЯ toLowerCase ---
-            docker run -d --restart always -p 8080:3000 --name logsapp ghcr.io/${{ github.repository }}:latest
-            
+            docker pull $IMAGE_NAME
+            docker stop $CONTAINER_NAME || true
+            docker rm $CONTAINER_NAME || true
+            # Используем порт 8080, как мы договорились
+            docker run -d --restart always -p 8080:3000 --name $CONTAINER_NAME $IMAGE_NAME
             docker image prune -af

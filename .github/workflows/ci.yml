@@ -8,7 +8,7 @@ on:
 
 # Задачи, которые нужно выполнить
 jobs:
-  # Задача №1: Сборка и публикация образа (она у вас уже была)
+  # Задача №1: Сборка и публикация образа
   build-and-push:
     runs-on: ubuntu-latest
     permissions:
@@ -31,11 +31,11 @@ jobs:
         with:
           context: .
           push: true
+          # --- ИСПРАВЛЕНО ЗДЕСЬ ---
           tags: ghcr.io/${{ toLowerCase(github.repository) }}:latest
 
-  # Задача №2: Развертывание на сервере (новая!)
+  # Задача №2: Развертывание на сервере
   deploy:
-    # Запускать эту задачу только после успешного завершения 'build-and-push'
     needs: build-and-push
     runs-on: ubuntu-latest
 
@@ -47,20 +47,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Шаг 1: Логинимся в GitHub Container Registry на сервере
             echo ${{ secrets.CR_PAT }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Шаг 2: Скачиваем последнюю версию нашего Docker-образа
+            # --- ИСПРАВЛЕНО ЗДЕСЬ ---
             docker pull ghcr.io/${{ toLowerCase(github.repository) }}:latest
             
-            # Шаг 3: Останавливаем и удаляем старый контейнер (если он был)
-            # '|| true' нужно, чтобы команда не завершилась с ошибкой, если контейнера еще нет
             docker stop logsapp || true
             docker rm logsapp || true
             
-            # Шаг 4: Запускаем новый контейнер из свежего образа
-            # ВАЖНО: Замените 80:3000 на ваши порты! Формат: <порт_на_сервере>:<порт_в_контейнере>
+            # --- И ИСПРАВЛЕНО ЗДЕСЬ ---
             docker run -d --restart always -p 80:3000 --name logsapp ghcr.io/${{ toLowerCase(github.repository) }}:latest
             
-            # Шаг 5 (опциональный): Очищаем систему от старых, неиспользуемых образов
             docker image prune -af

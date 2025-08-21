@@ -1,6 +1,12 @@
+# Dependencies
 node_modules
+npm-debug.log
+
+# Git and IDE folders
 .git
 .idea
-npm-debug.log
-Dockerfile*
+
+# Не включаем в образ сам Dockerfile и этот файл
+# Используем точные имена
+Dockerfile
 .dockerignore
